@@ -90,9 +90,7 @@ def run(sec):
     except Exception as e:
         print("RSS ERROR:", url)
         return
-
-    soup = BeautifulSoup(xml, "xml")
-    items = soup.find_all("item")
+soup = BeautifulSoup(xml, "lxml-xml")
 
     count = 0
 
