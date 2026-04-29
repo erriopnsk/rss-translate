@@ -5,6 +5,7 @@ import os
 import socket
 import time
 import requests
+import re
 from bs4 import BeautifulSoup
 from urllib import request, parse
 from pygtrans import Translate
@@ -35,10 +36,18 @@ def send(text):
         pass
 
 # =======================
-# أدوات
+# أدوات تنظيف قوية
 # =======================
-def clean(t):
-    return BeautifulSoup(t, "html.parser").text.strip()
+seen = set()
+
+def md5(x):
+    return hashlib.md5(x.encode()).hexdigest()
+
+def clean_text(text):
+    text = BeautifulSoup(text, "html.parser").text
+    text = re.sub(r"\[.*?\]", "", text)   # إزالة [...]
+    text = re.sub(r"\s+", " ", text)      # تنظيف الفراغات
+    return text.strip()
 
 # =======================
 # تحميل الإعدادات
@@ -72,7 +81,20 @@ def translate(text):
     return en, fa
 
 # =======================
-# RSS
+# تنسيق الرسالة
+# =======================
+def format_msg(title, en, fa):
+    return f"""🔴 {title}
+
+🇬🇧 English:
+{en}
+
+🇮🇷 فارسی:
+{fa}
+"""
+
+# =======================
+# RSS CORE
 # =======================
 def run(sec):
 
@@ -88,7 +110,7 @@ def run(sec):
         print("RSS ERROR:", url)
         return
 
-    soup = BeautifulSoup(xml, "lxml-xml")
+    soup = BeautifulSoup(xml, "xml")
     items = soup.find_all("item")
 
     count = 0
@@ -98,26 +120,27 @@ def run(sec):
         if count >= max_item:
             break
 
-        title = clean(item.title.text if item.title else "")
-        desc = clean(item.description.text if item.description else "")
+        title = clean_text(item.title.text if item.title else "")
+        desc = clean_text(item.description.text if item.description else "")
 
         if not title:
             continue
+
+        # 🔥 منع التكرار
+        key = md5(title)
+        if key in seen:
+            continue
+        seen.add(key)
 
         text = title + " " + desc
 
         en, fa = translate(text)
 
-        msg = f"""🔴 {title}
-
-🔴 URGENT | {en}
-
-🔴 فوری | {fa}
-"""
+        msg = format_msg(title, en, fa)
 
         send(msg)
 
-        print("SENT:", title[:40])
+        print("SENT:", title[:60])
 
         count += 1
         time.sleep(1)
