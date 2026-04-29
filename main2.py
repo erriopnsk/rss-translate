@@ -2,125 +2,72 @@
 import configparser
 from pygtrans import Translate
 from bs4 import BeautifulSoup
-import sys
-import os
 from urllib import request, parse
 import urllib
 import hashlib
+import os
+import requests
 
-import datetime
-import time
-from rfeed import *
-import feedparser
+# =======================
+# 🔥 Telegram Settings
+# =======================
+TELEGRAM_TOKEN = "PUT_NEW_TOKEN_HERE"
+CHAT_ID = "@Qassamcircler"
 
+def send_telegram(text, image=None):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
+    try:
+        if image:
+            requests.post(url + "/sendPhoto", data={
+                "chat_id": CHAT_ID,
+                "photo": image,
+                "caption": text[:1024]
+            })
+        else:
+            requests.post(url + "/sendMessage", data={
+                "chat_id": CHAT_ID,
+                "text": text
+            })
+    except Exception as e:
+        print("Telegram error:", e)
 
+# =======================
+# Utils
+# =======================
 def get_md5_value(src):
     _m = hashlib.md5()
     _m.update(src.encode('utf-8'))
     return _m.hexdigest()
 
-
-def getTime(e):
+def get_image(item):
     try:
-        struct_time = e.published_parsed
+        if item.find("enclosure"):
+            return item.find("enclosure").get("url")
     except:
-        struct_time = time.localtime()
-    return datetime.datetime(*struct_time[:6])
+        pass
+    return None
 
-
-def getSubtitle(e):
-    try:
-        sub = e.subtitle
-    except:
-        sub = ""
-    return sub
-
-
-class GoogleTran:
-    def __init__(self, url, source='auto', target='zh-CN'):
-        self.url = url
-        self.source = source
-        self.target = target
-
-        self.d = feedparser.parse(url)
-        self.GT = Translate()
-
-    def tr(self, content):
-        if self.source == 'proxy':
-            return content
-        try:
-            tt = self.GT.translate(content, target=self.target, source=self.source)
-            return tt.translatedText
-        except:
-            return content
-
-    def get_newconent(self, max=2):
-        item_list = []
-
-        if not self.d.entries:
-            return ""
-
-        if len(self.d.entries) < max:
-            max = len(self.d.entries)
-
-        for entry in self.d.entries[:max]:
-
-            title = getattr(entry, "title", "No Title")
-            summary = getattr(entry, "summary", "")
-
-            one = Item(
-                title=self.tr(title),
-                link=getattr(entry, "link", ""),
-                description=self.tr(summary),
-                guid=Guid(getattr(entry, "link", "")),
-                pubDate=getTime(entry)
-            )
-            item_list.append(one)
-
-        feed = self.d.feed if hasattr(self.d, "feed") else {}
-
-        title = getattr(feed, "title", "No Title")
-        link = getattr(feed, "link", self.url)
-        desc = getattr(feed, "subtitle", "")
-
-        newfeed = Feed(
-            title=self.tr(title),
-            link=link,
-            description=self.tr(desc),
-            lastBuildDate=datetime.datetime.now(),
-            items=item_list
-        )
-
-        return newfeed.rss()
-
-
+# =======================
+# Load config
+# =======================
 with open('test.ini', mode='r') as f:
     ini_data = parse.unquote(f.read())
 
 config = configparser.ConfigParser()
 config.read_string(ini_data)
-
 secs = config.sections()
-
 
 def get_cfg(sec, name):
     return config.get(sec, name).strip('"')
 
-
 def set_cfg(sec, name, value):
     config[sec][name] = '"%s"' % value
 
-
 def get_cfg_tra(sec):
     cc = config.get(sec, "action").strip('"')
-
-    if cc == "auto":
-        return 'auto', 'zh-CN'
-    elif cc == "proxy":
-        return 'proxy', 'proxy'
-    else:
+    if "->" in cc:
         return cc.split('->')[0], cc.split('->')[1]
-
+    return "auto", "zh-CN"
 
 BASE = get_cfg("cfg", 'base')
 
@@ -129,59 +76,63 @@ try:
 except:
     pass
 
+GT = Translate()
 
-links = []
-
-
+# =======================
+# MAIN FUNCTION
+# =======================
 def tran(sec):
+
     out_dir = BASE + get_cfg(sec, 'name')
     url = get_cfg(sec, 'url')
     max_item = int(get_cfg(sec, 'max'))
-    old_md5 = get_cfg(sec, 'md5')
     source, target = get_cfg_tra(sec)
 
-    global links
+    headers = {
+        'User-Agent': 'Mozilla/5.0'
+    }
 
-    links += [" - %s [%s](%s) -> [%s](%s)\n" % (
-        sec, url, url, get_cfg(sec, 'name'), parse.quote(out_dir)
-    )]
+    req = urllib.request.Request(url, headers=headers)
+    xml = request.urlopen(req).read().decode('utf8')
 
-    GT = GoogleTran(url, target=target, source=source)
+    soup = BeautifulSoup(xml, "html.parser")
+    items = soup.find_all('item')
 
-    c = GT.get_newconent(max=max_item)
+    count = 0
 
-    if not c:
-        print("Skip empty feed:", url)
-        return
+    for item in items:
 
-    with open(out_dir, 'w', encoding='utf-8') as f:
-        f.write(c)
+        if count >= max_item:
+            break
 
-    print("GT: " + url + " > " + out_dir)
+        title = item.find('title')
+        desc = item.find('description')
 
+        title = title.text if title else ""
+        desc = desc.text if desc else ""
 
+        # translate
+        try:
+            title = GT.translate(title, target=target, source=source).translatedText
+            desc = GT.translate(desc, target=target, source=source).translatedText
+        except:
+            pass
+
+        img = get_image(item)
+
+        msg = f"{title}\n\n{desc}"
+
+        send_telegram(msg, img)
+
+        count += 1
+
+    print("DONE:", url)
+
+# =======================
+# RUN
+# =======================
 for x in secs[1:]:
     tran(x)
-    print(config.items(x))
 
-
-with open('test.ini', 'w') as configfile:
-    config.write(configfile)
-
-
-def get_idx(l):
-    for idx, line in enumerate(l):
-        if "## rss translate links" in line:
-            return idx + 2
-
-
-YML = "README.md"
-
-f = open(YML, "r+", encoding="UTF-8")
-list1 = f.readlines()
-
-list1 = list1[:get_idx(list1)] + links
-
-f = open(YML, "w+", encoding="UTF-8")
-f.writelines(list1)
-f.close()
+with open('test.ini', 'w') as f:
+    config.write(f)
