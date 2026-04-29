@@ -37,9 +37,6 @@ def send(text):
 # =======================
 # أدوات
 # =======================
-def md5(x):
-    return hashlib.md5(x.encode()).hexdigest()
-
 def clean(t):
     return BeautifulSoup(t, "html.parser").text.strip()
 
@@ -79,20 +76,22 @@ def translate(text):
 # =======================
 def run(sec):
 
+    url = get(sec, "url")
+    max_item = int(get(sec, "max"))
+
+    headers = {"User-Agent": "Mozilla/5.0"}
+
+    try:
+        req = request.Request(url, headers=headers)
+        xml = request.urlopen(req, timeout=10).read().decode("utf-8")
+    except Exception as e:
+        print("RSS ERROR:", url)
+        return
+
+    soup = BeautifulSoup(xml, "xml")
+    items = soup.find_all("item")
+
     count = 0
-
-    for item in items:
-
-        if count >= max_item:
-            break
-
-        title = item.find('title')
-        desc = item.find('description')
-
-        title = title.text if title else ""
-        desc = desc.text if desc else ""
-
-        count += 1
 
     for item in items:
 
