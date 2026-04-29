@@ -76,7 +76,7 @@ def is_valid_news(text):
     return False
 
 # =======================
-# تحميل config
+# تحميل الإعدادات
 # =======================
 with open("test.ini", "r", encoding="utf-8") as f:
     ini = parse.unquote(f.read())
@@ -113,7 +113,7 @@ def translate(text):
     return en, fa
 
 # =======================
-# تنسيق
+# تنسيق الرسالة
 # =======================
 def format_msg(title, en, fa):
     return f"""<b>🔴 عاجل | {title}</b>
@@ -124,7 +124,7 @@ def format_msg(title, en, fa):
 """
 
 # =======================
-# RSS
+# RSS CORE (مصحح 100%)
 # =======================
 def run(sec):
 
@@ -151,30 +151,35 @@ def run(sec):
             break
 
         title = clean_text(item.title.text if item.title else "")
+        desc = clean_text(item.description.text if item.description else "")
+
+        # 🔥 أهم تعديل: دمج الخبر الكامل
+        text = f"{title} {desc}".strip()
 
         if not title:
             continue
 
-        # 🔥 فلترة
-        if not is_valid_news(title):
+        # فلترة
+        if not is_valid_news(text):
             continue
 
-        # 🔥 منع التكرار
+        # منع التكرار
         key = md5(title)
         if key in seen:
             continue
         seen.add(key)
 
-        en, fa = translate(title)
+        # ترجمة النص الكامل
+        en, fa = translate(text)
 
-        msg = format_msg(title, en, fa)
+        msg = format_msg(text, en, fa)
 
         send(msg)
 
         print("SENT:", title[:60])
 
         count += 1
-        time.sleep(1)
+        time.sleep(2)
 
 # =======================
 # تشغيل دائم
@@ -182,5 +187,6 @@ def run(sec):
 while True:
     for sec in secs[1:]:
         run(sec)
+        time.sleep(15)
 
-    time.sleep(5)
+    time.sleep(60)
