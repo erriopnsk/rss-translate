@@ -36,7 +36,7 @@ def send(text):
         pass
 
 # =======================
-# أدوات
+# أدوات تنظيف
 # =======================
 seen = set()
 
@@ -55,6 +55,17 @@ def clean_all(text):
     text = re.sub(r"(فوری\s*\|\s*)+", "", text)
     text = re.sub(r"\s+", " ", text)
     return text.strip()
+
+def remove_duplicate_sentences(text):
+    parts = re.split(r'[.!؟?]', text)
+    seen_local = set()
+    result = []
+    for p in parts:
+        p = p.strip()
+        if p and p not in seen_local:
+            seen_local.add(p)
+            result.append(p)
+    return ". ".join(result).strip()
 
 # =======================
 # فلترة الأخبار
@@ -102,10 +113,13 @@ def translate(text):
     en = clean_all(en)
     fa = clean_all(fa)
 
+    en = remove_duplicate_sentences(en)
+    fa = remove_duplicate_sentences(fa)
+
     return en, fa
 
 # =======================
-# 📌 تنسيق الرسالة (عريض بالكامل)
+# تنسيق الرسالة (عريض)
 # =======================
 def format_msg(title, en, fa):
     return f"""<b>🔴 عاجل | {title}</b>
@@ -145,7 +159,8 @@ def run(sec):
         title = clean_text(item.title.text if item.title else "")
         desc = clean_text(item.description.text if item.description else "")
 
-        text = clean_all(f"{title} {desc}")
+        text = f"{title} {desc}"
+        text = clean_all(text)
 
         if not title:
             continue
