@@ -75,6 +75,19 @@ GT = Translate()
 # =======================
 # MAIN FUNCTION
 # =======================
+import html
+import re
+
+def clean_text(text):
+    if not text:
+        return ""
+    text = html.unescape(text)
+    text = re.sub(r'<.*?>', '', text)
+    text = text.replace('\r', '')
+    text = re.sub(r'\n\s*\n', '\n\n', text)
+    return text.strip()
+
+
 def tran(sec):
 
     out_dir = BASE + get_cfg(sec, 'name')
@@ -105,7 +118,7 @@ def tran(sec):
         title = title.text if title else ""
         desc = desc.text if desc else ""
 
-        # translate
+        # 🔥 translate
         try:
             title = GT.translate(title, target=target, source=source).translatedText
             desc = GT.translate(desc, target=target, source=source).translatedText
@@ -114,9 +127,10 @@ def tran(sec):
 
         img = get_image(item)
 
-        msg = f"{title}\n\n{desc}"
+        # 🧠 CLEAN TEXT HERE
+        msg = clean_text(f"{title}\n\n{desc}")
 
-        send_telegram(msg, img)
+        send_telegram(msg)
 
         count += 1
 
