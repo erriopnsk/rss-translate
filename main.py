@@ -58,6 +58,7 @@ def normalize(text):
     text = re.sub(r"(عاجل\s*\|\s*)+", "", text)
     text = re.sub(r"(Urgent\s*\|\s*)+", "", text)
     text = re.sub(r"(فوری\s*\|\s*)+", "", text)
+    text = re.sub(r"^🔴\s*", "", text)
     return text.strip()
 
 # =========================
@@ -95,7 +96,7 @@ def send(text):
         pass
 
 # =========================
-# 📰 FORMAT (BOLD STYLE)
+# 📰 FORMAT (BOLD FULL)
 # =========================
 def format_msg(ar, en, fa):
     return f"""**🔴 عاجل | {ar}**
@@ -115,7 +116,7 @@ def fetch(url):
     return BeautifulSoup(xml, "xml")
 
 # =========================
-# 🧠 PROCESS
+# 🧠 PROCESS (FIXED CORE)
 # =========================
 def process(url):
 
@@ -130,11 +131,11 @@ def process(url):
     title = clean(item.title.text if item.title else "")
     desc = clean(item.description.text if item.description else "")
 
-    # منع تكرار داخل النص
-    if desc and title in desc:
+    # منع تكرار النص داخل نفسه
+    if desc and (title in desc or desc in title):
         desc = ""
 
-    text = clean(f"{title} {desc}")
+    text = clean(f"{title} {desc}" if desc else title)
 
     if not text:
         return
