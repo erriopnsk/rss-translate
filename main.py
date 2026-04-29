@@ -1,142 +1,135 @@
-# coding:utf-8 
+# coding:utf-8
 import configparser
-from pygtrans import Translate
-from bs4 import BeautifulSoup
-import sys
-import os
-from urllib import request, parse
-import urllib
-# pip install pygtrans -i https://pypi.org/simple
-# ref:https://zhuanlan.zhihu.com/p/390801784
-# ref:https://beautifulsoup.readthedocs.io/zh_CN/latest/
-# ref:https://pygtrans.readthedocs.io/zh_CN/latest/langs.html
-# client = Translate()
-# text = client.translate('Google Translate')
-# print(text.translatedText)  # 谷歌翻译
 import hashlib
-def get_md5_value(src):
-    _m = hashlib.md5()
-    _m.update(src.encode('utf-8'))
-    return _m.hexdigest()
+import os
+import socket
+import time
+import requests
+from bs4 import BeautifulSoup
+from urllib import request, parse
+from pygtrans import Translate
 
+# =======================
+# ⚡ منع التعليق
+# =======================
+socket.setdefaulttimeout(10)
 
-with open('test.ini', mode = 'r') as f:
-    ini_data = parse.unquote(f.read())
+# =======================
+# 🔥 Telegram
+# =======================
+TELEGRAM_TOKEN = "8715919493:AAGPmTrIEG-msszdRaO1Ujdr3AogPablXkI"
+CHAT_ID = "@Qassamcircler"
+
+def send(text):
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+            data={
+                "chat_id": CHAT_ID,
+                "text": text,
+                "disable_web_page_preview": True
+            },
+            timeout=10
+        )
+    except:
+        pass
+
+# =======================
+# أدوات
+# =======================
+def md5(x):
+    return hashlib.md5(x.encode()).hexdigest()
+
+def clean(t):
+    return BeautifulSoup(t, "html.parser").text.strip()
+
+# =======================
+# تحميل الإعدادات
+# =======================
+with open("test.ini", "r", encoding="utf-8") as f:
+    ini = parse.unquote(f.read())
+
 config = configparser.ConfigParser()
-config.read_string(ini_data)
-secs=config.sections()
+config.read_string(ini)
+secs = config.sections()
 
+def get(sec, key):
+    return config.get(sec, key).strip('"')
 
+# =======================
+# الترجمة
+# =======================
+GT = Translate()
 
-def get_cfg(sec,name):
-    return config.get(sec,name).strip('"')
+def translate(text):
+    try:
+        en = GT.translate(text, target="en").translatedText
+    except:
+        en = text
 
-def set_cfg(sec,name,value):
-    config[sec][name]='"%s"'%value
+    try:
+        fa = GT.translate(text, target="fa").translatedText
+    except:
+        fa = text
 
-def get_cfg_tra(sec):
-    cc=config.get(sec,"action").strip('"')
-    target=""
-    source=""
-    if cc == "auto":
-        source  = 'auto'
-        target  = 'zh-CN'
-        
-         
-    else:
-        source  = cc.split('->')[0]
-        target  = cc.split('->')[1]
-    return source,target
+    return en, fa
 
+# =======================
+# RSS
+# =======================
+def run(sec):
 
-# config['url']={'url':'www.baidu.com'} #类似于字典操作
- 
-# with open('example.ini','w') as configfile:
-#     config.write(configfile)
+    url = get(sec, "url")
+    max_item = int(get(sec, "max"))
 
-BASE=get_cfg("cfg",'base')
-try:
-    os.makedirs(BASE)
-except:
-    pass
-links=[]
-def tran(sec):
-    out_dir= BASE + get_cfg(sec,'name')
-    url=get_cfg(sec,'url')
-    max_item=int(get_cfg(sec,'max'))
-    old_md5=get_cfg(sec,'md5')
-    source,target=get_cfg_tra(sec)
-    global links
+    headers = {"User-Agent": "Mozilla/5.0"}
 
-    links+=[" - %s [%s](%s) -> [%s](%s)\n"%(sec,url,(url),get_cfg(sec,'name'),parse.quote(out_dir))]
-
-
-    GT = Translate()
-    headers={
-        'User-Agent':'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.1847.137 Safari/537.36 LBBROWSER'
-        }
-    req = urllib.request.Request(url, headers=headers)
-
- 
-    html_doc=request.urlopen(req).read().decode('utf8')
-    new_md5= get_md5_value(html_doc)
-
-    if old_md5 == new_md5:
+    try:
+        req = request.Request(url, headers=headers)
+        xml = request.urlopen(req, timeout=10).read().decode("utf-8")
+    except Exception as e:
+        print("RSS ERROR:", url)
         return
-    else:
-        set_cfg(sec,'md5',new_md5)
-    # move style
-    html_doc=html_doc.replace('<?', '</s')
-    html_doc=html_doc.replace('?>', '/>')
-    
-    soup = BeautifulSoup(html_doc)
-    items=soup.find_all('item')
 
-    for idx,e in enumerate(items):
-        if idx >max_item:
-                e.decompose()
-    
-    content= str(soup)
-    
-    content=content.replace('<title', '<stitle')
-    content=content.replace('title>', 'stitle>')
-    content=content.replace( '<pubdate>','<pubDate><span translate="no">')
-    content=content.replace( '</pubdate>','</span></pubdate>')
-    # print(content)
-    
-    
-    _text = GT.translate(content,target=target,source=source)
-    
-    
-    with open(out_dir,'w',encoding='utf-8') as f:
-        c=_text.translatedText
-        
-        c=c.replace('<stitle', '<title')
-        c=c.replace('stitle>', 'title>')
-        c=c.replace('<span translate="no">', '')
-        c=c.replace('</span></pubdate>', '</pubDate>') # 对于ttrss需要为pubDate才会识别正确
-        c=c.replace('&gt','>') # &gt 会影响识别
-        
-        f.write(c)
-        #print(c)
-        #f.write(content)
-    print("GT: "+ url +" > "+ out_dir)
+    soup = BeautifulSoup(xml, "xml")
+    items = soup.find_all("item")
 
-for x in secs[1:]:
-    tran(x)
-    print(config.items(x))
+    count = 0
 
-with open('test.ini','w') as configfile:
-    config.write(configfile)
+    for item in items:
 
+        if count >= max_item:
+            break
 
+        title = clean(item.title.text if item.title else "")
+        desc = clean(item.description.text if item.description else "")
 
-YML="README.md"
+        if not title:
+            continue
 
-f = open(YML, "r+", encoding="UTF-8")
-list1 = f.readlines()           
-list1= list1[:13] + links
+        text = title + " " + desc
 
-f = open(YML, "w+", encoding="UTF-8")
-f.writelines(list1)
-f.close()
+        en, fa = translate(text)
+
+        msg = f"""🔴 {title}
+
+🔴 URGENT | {en}
+
+🔴 فوری | {fa}
+"""
+
+        send(msg)
+
+        print("SENT:", title[:40])
+
+        count += 1
+        time.sleep(1)
+
+# =======================
+# تشغيل دائم
+# =======================
+while True:
+    for sec in secs[1:]:
+        run(sec)
+
+    time.sleep(5)
