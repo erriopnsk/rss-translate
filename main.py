@@ -1,25 +1,84 @@
 # coding:utf-8
-import configparser
+import sqlite3
 import hashlib
-import socket
 import time
 import requests
 import re
 from bs4 import BeautifulSoup
-from urllib import request, parse
+from urllib import request
 from pygtrans import Translate
 
-# =======================
-# ⚡ منع التعليق
-# =======================
-socket.setdefaulttimeout(10)
-
-# =======================
-# 🔥 Telegram
-# =======================
-TELEGRAM_TOKEN = "8715919493:AAGPmTrIEG-msszdRaO1Ujdr3AogPablXkI"
+# =========================
+# 🔥 CONFIG
+# =========================
+TELEGRAM_TOKEN ="8715919493:AAGPmTrIEG-msszdRaO1Ujdr3AogPablXkI"
 CHAT_ID = "@Qassamcircler"
 
+RSS_FEEDS = [
+    "https://tg.i-c-a.su/rss/AjaNews",
+    "https://tg.i-c-a.su/rss/almayadeen"
+]
+
+# =========================
+# 🧠 DATABASE (Core Memory)
+# =========================
+conn = sqlite3.connect("rss_bot.db", check_same_thread=False)
+cur = conn.cursor()
+
+cur.execute("""
+CREATE TABLE IF NOT EXISTS sent_news (
+    id TEXT PRIMARY KEY
+)
+""")
+conn.commit()
+
+def already_sent(news_id):
+    cur.execute("SELECT id FROM sent_news WHERE id=?", (news_id,))
+    return cur.fetchone() is not None
+
+def save_news(news_id):
+    cur.execute("INSERT OR IGNORE INTO sent_news (id) VALUES (?)", (news_id,))
+    conn.commit()
+
+# =========================
+# ⚡ TOOLS
+# =========================
+GT = Translate()
+
+def md5(text):
+    return hashlib.md5(text.encode()).hexdigest()
+
+def clean(text):
+    text = BeautifulSoup(text, "html.parser").text
+    text = re.sub(r"\[.*?\]", "", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+def normalize(text):
+    text = re.sub(r"(عاجل\s*\|\s*)+", "", text)
+    text = re.sub(r"(Urgent\s*\|\s*)+", "", text)
+    text = re.sub(r"(فوری\s*\|\s*)+", "", text)
+    return text.strip()
+
+# =========================
+# 🌍 TRANSLATION
+# =========================
+def translate(text):
+    try:
+        en = GT.translate(text, target="en").translatedText
+    except:
+        en = text
+
+    try:
+        fa = GT.translate(text, target="fa").translatedText
+    except:
+        fa = text
+
+    return normalize(en), normalize(fa)
+
+# =========================
+# 📩 TELEGRAM
+# =========================
 def send(text):
     try:
         requests.post(
@@ -35,144 +94,64 @@ def send(text):
     except:
         pass
 
-# =======================
-# أدوات تنظيف
-# =======================
-seen = set()
+# =========================
+# 📰 FORMAT
+# =========================
+def format_msg(ar, en, fa):
+    return f"""<b>🔴 عاجل | {ar}</b>
 
-def md5(x):
-    return hashlib.md5(x.encode()).hexdigest()
+<b>🇬🇧 English:</b>
+{en}
 
-def clean_text(text):
-    text = BeautifulSoup(text, "html.parser").text
-    text = re.sub(r"\[.*?\]", "", text)
-    text = re.sub(r"\s+", " ", text)
-    return text.strip()
-
-def clean_all(text):
-    text = re.sub(r"(عاجل\s*\|\s*)+", "", text)
-    text = re.sub(r"(Urgent\s*\|\s*)+", "", text)
-    text = re.sub(r"(فوری\s*\|\s*)+", "", text)
-    text = re.sub(r"\s+", " ", text)
-    return text.strip()
-
-def smart_dedupe(text):
-    parts = re.split(r'[.!؟?]', text)
-    seen_local = set()
-    out = []
-
-    for p in parts:
-        p = p.strip()
-        if not p:
-            continue
-        if any(p in x or x in p for x in seen_local):
-            continue
-        seen_local.add(p)
-        out.append(p)
-
-    return ". ".join(out).strip()
-
-def make_key(text):
-    text = clean_all(text)
-    text = smart_dedupe(text)
-    return md5(text)
-
-# =======================
-# فلترة الأخبار
-# =======================
-FILTER_WORDS = [
-    "إسرائيل","الاحتلال","إيران","لبنان","فلسطين","غزة",
-    "Israel","Iran","Lebanon","Palestine","Gaza"
-]
-
-def is_valid_news(text):
-    return any(w.lower() in text.lower() for w in FILTER_WORDS)
-
-# =======================
-# تحميل الإعدادات
-# =======================
-with open("test.ini", "r", encoding="utf-8") as f:
-    ini = parse.unquote(f.read())
-
-config = configparser.ConfigParser()
-config.read_string(ini)
-secs = config.sections()
-
-def get(sec, key):
-    return config.get(sec, key).strip('"')
-
-# =======================
-# الترجمة
-# =======================
-GT = Translate()
-
-def translate(text):
-    text = smart_dedupe(text)
-
-    try:
-        en = GT.translate(text, target="en").translatedText
-    except:
-        en = text
-
-    try:
-        fa = GT.translate(text, target="fa").translatedText
-    except:
-        fa = text
-
-    en = smart_dedupe(clean_all(en))
-    fa = smart_dedupe(clean_all(fa))
-
-    return en, fa
-
-# =======================
-# تنسيق الرسالة
-# =======================
-def format_msg(title, en, fa):
-    return f"""<b>🔴 عاجل | {title}</b>
-
-<b>🔴 Urgent | {en}</b>
-
-<b>🔴 فوری | {fa}</b>
+<b>🇮🇷 فارسی:</b>
+{fa}
 """
 
-# =======================
-# RSS CORE (آخر خبر فقط)
-# =======================
-def run(sec):
-
-    url = get(sec, "url")
-
+# =========================
+# 🌐 FETCH RSS
+# =========================
+def fetch(url):
     headers = {"User-Agent": "Mozilla/5.0"}
+    req = request.Request(url, headers=headers)
+    xml = request.urlopen(req, timeout=10).read().decode("utf-8")
+    return BeautifulSoup(xml, "xml")
 
-    try:
-        req = request.Request(url, headers=headers)
-        xml = request.urlopen(req, timeout=10).read().decode("utf-8")
-    except:
-        print("RSS ERROR:", url)
-        return
+# =========================
+# 🧠 PROCESS LOGIC (SMART CORE)
+# =========================
+def process(url):
 
-    soup = BeautifulSoup(xml, "html.parser")
+    soup = fetch(url)
     items = soup.find_all("item")
 
     if not items:
         return
 
-    # 🔥 فقط أحدث خبر
+    # 🔥 أحدث خبر فقط
     item = items[0]
 
-    title = clean_text(item.title.text if item.title else "")
-    desc = clean_text(item.description.text if item.description else "")
+    title = clean(item.title.text if item.title else "")
+    desc = clean(item.description.text if item.description else "")
 
-    if not title:
+    # منع التكرار داخل النص
+    if desc and title in desc:
+        desc = ""
+
+    text = normalize(f"{title} {desc}")
+
+    # لو فاضي تجاهل
+    if not text:
         return
 
-    text = clean_all(f"{title} {desc}")
-    text = smart_dedupe(text)
+    news_id = md5(text)
 
-    key = make_key(text)
-    if key in seen:
+    # =========================
+    # 🚫 منع التكرار النهائي
+    # =========================
+    if already_sent(news_id):
         return
-    seen.add(key)
+
+    save_news(news_id)
 
     en, fa = translate(text)
 
@@ -180,14 +159,23 @@ def run(sec):
 
     send(msg)
 
-    print("SENT LATEST:", title[:60])
+    print("SENT:", title[:60])
 
-# =======================
-# تشغيل دائم
-# =======================
-while True:
-    for sec in secs[1:]:
-        run(sec)
-        time.sleep(10)
+# =========================
+# 🚀 ENGINE (PRO LOOP)
+# =========================
+def run():
 
-    time.sleep(60)
+    while True:
+
+        for url in RSS_FEEDS:
+            try:
+                process(url)
+                time.sleep(5)
+            except Exception as e:
+                print("ERROR:", url, e)
+
+        time.sleep(60)
+
+# =========================
+run()
