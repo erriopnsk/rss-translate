@@ -2,9 +2,9 @@ name: circle_translate
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '*/10 * * * *'
-
+  schedule
+  on:
+  workflow_dispatch:
 jobs:
   build:
     runs-on: ubuntu-20.04
