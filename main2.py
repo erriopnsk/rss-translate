@@ -7,6 +7,8 @@ import urllib
 import hashlib
 import os
 import requests
+import html
+import re
 
 # =======================
 # 🔥 Telegram Settings
@@ -15,10 +17,9 @@ TELEGRAM_TOKEN = "8715919493:AAGPmTrIEG-msszdRaO1Ujdr3AogPablXkI"
 CHAT_ID = "@Qassamcircler"
 
 def send_telegram(text):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
-
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     try:
-        requests.post(url + "/sendMessage", data={
+        requests.post(url, data={
             "chat_id": CHAT_ID,
             "text": text
         })
@@ -26,12 +27,22 @@ def send_telegram(text):
         print("Telegram error:", e)
 
 # =======================
+# 🧠 Clean text system
+# =======================
+def clean_text(text):
+    if not text:
+        return ""
+    text = html.unescape(text)
+    text = re.sub(r'<.*?>', '', text)
+    text = text.replace("\r", "")
+    text = re.sub(r'\n\s*\n', '\n\n', text)
+    return text.strip()
+
+# =======================
 # Utils
 # =======================
 def get_md5_value(src):
-    _m = hashlib.md5()
-    _m.update(src.encode('utf-8'))
-    return _m.hexdigest()
+    return hashlib.md5(src.encode('utf-8')).hexdigest()
 
 def get_image(item):
     try:
@@ -73,34 +84,24 @@ except:
 GT = Translate()
 
 # =======================
-# MAIN FUNCTION
+# MAIN ENGINE
 # =======================
-import html
-import re
-
-def clean_text(text):
-    if not text:
-        return ""
-    text = html.unescape(text)
-    text = re.sub(r'<.*?>', '', text)
-    text = text.replace('\r', '')
-    text = re.sub(r'\n\s*\n', '\n\n', text)
-    return text.strip()
-
-
 def tran(sec):
 
-    out_dir = BASE + get_cfg(sec, 'name')
     url = get_cfg(sec, 'url')
     max_item = int(get_cfg(sec, 'max'))
     source, target = get_cfg_tra(sec)
+    old_md5 = get_cfg(sec, 'md5')
 
-    headers = {
-        'User-Agent': 'Mozilla/5.0'
-    }
-
+    headers = {'User-Agent': 'Mozilla/5.0'}
     req = urllib.request.Request(url, headers=headers)
     xml = request.urlopen(req).read().decode('utf8')
+
+    # 🔥 منع التكرار
+    new_md5 = get_md5_value(xml)
+    if new_md5 == old_md5:
+        return
+    set_cfg(sec, 'md5', new_md5)
 
     soup = BeautifulSoup(xml, "html.parser")
     items = soup.find_all('item')
@@ -118,18 +119,20 @@ def tran(sec):
         title = title.text if title else ""
         desc = desc.text if desc else ""
 
-        # 🔥 translate
+        if len(title.strip()) < 3:
+            continue
+
+        # 🔥 translate safely
         try:
             title = GT.translate(title, target=target, source=source).translatedText
             desc = GT.translate(desc, target=target, source=source).translatedText
         except:
             pass
 
-        img = get_image(item)
-
-        # 🧠 CLEAN TEXT HERE
+        # 🧠 clean
         msg = clean_text(f"{title}\n\n{desc}")
 
+        # 🚀 send
         send_telegram(msg)
 
         count += 1
@@ -137,10 +140,13 @@ def tran(sec):
     print("DONE:", url)
 
 # =======================
-# RUN
+# RUN ALL SOURCES
 # =======================
 for x in secs[1:]:
-    tran(x)
+    try:
+        tran(x)
+    except Exception as e:
+        print("Error in", x, e)
 
 with open('test.ini', 'w') as f:
     config.write(f)
