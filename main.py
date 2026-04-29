@@ -27,7 +27,7 @@ def send(text):
             data={
                 "chat_id": CHAT_ID,
                 "text": text,
-                "parse_mode": "HTML",  # 🔥 لتفعيل bold
+                "parse_mode": "HTML",
                 "disable_web_page_preview": True
             },
             timeout=10
@@ -36,7 +36,7 @@ def send(text):
         pass
 
 # =======================
-# أدوات تنظيف
+# أدوات
 # =======================
 seen = set()
 
@@ -49,7 +49,6 @@ def clean_text(text):
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
-# 🔥 إزالة التكرار داخل الجمل
 def remove_duplicate(text):
     parts = re.split(r'[.!?]', text)
     unique = []
@@ -60,7 +59,24 @@ def remove_duplicate(text):
     return ". ".join(unique)
 
 # =======================
-# تحميل الإعدادات
+# فلترة الأخبار
+# =======================
+FILTER_WORDS = [
+    "إسرائيل","اسرائيل","الاحتلال","الكيان",
+    "إيران","إيراني",
+    "لبنان","حزب الله",
+    "فلسطين","غزة","الضفة","القدس",
+    "Israel","Israeli","Iran","Lebanon","Palestine","Gaza"
+]
+
+def is_valid_news(text):
+    for w in FILTER_WORDS:
+        if w.lower() in text.lower():
+            return True
+    return False
+
+# =======================
+# تحميل config
 # =======================
 with open("test.ini", "r", encoding="utf-8") as f:
     ini = parse.unquote(f.read())
@@ -88,18 +104,16 @@ def translate(text):
     except:
         fa = text
 
-    # 🔥 إزالة التكرار
     en = remove_duplicate(en)
     fa = remove_duplicate(fa)
 
-    # 🔥 تنظيف كلمات عاجل
-    en = en.replace("Urgent | Urgent |", "").replace("Urgent |", "").strip()
-    fa = fa.replace("فوری | فوری |", "").replace("فوری |", "").strip()
+    en = en.replace("Urgent |", "").strip()
+    fa = fa.replace("فوری |", "").strip()
 
     return en, fa
 
 # =======================
-# تنسيق الرسالة (Bold كامل)
+# تنسيق
 # =======================
 def format_msg(title, en, fa):
     return f"""<b>🔴 عاجل | {title}</b>
@@ -110,7 +124,7 @@ def format_msg(title, en, fa):
 """
 
 # =======================
-# RSS CORE
+# RSS
 # =======================
 def run(sec):
 
@@ -122,7 +136,7 @@ def run(sec):
     try:
         req = request.Request(url, headers=headers)
         xml = request.urlopen(req, timeout=10).read().decode("utf-8")
-    except Exception:
+    except:
         print("RSS ERROR:", url)
         return
 
@@ -141,16 +155,17 @@ def run(sec):
         if not title:
             continue
 
-        # 🔥 منع تكرار الأخبار
+        # 🔥 فلترة
+        if not is_valid_news(title):
+            continue
+
+        # 🔥 منع التكرار
         key = md5(title)
         if key in seen:
             continue
         seen.add(key)
 
-        # ✅ نستخدم العنوان فقط (حل المشكلة)
-        text = title
-
-        en, fa = translate(text)
+        en, fa = translate(title)
 
         msg = format_msg(title, en, fa)
 
