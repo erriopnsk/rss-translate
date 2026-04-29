@@ -86,7 +86,7 @@ def send(text):
             data={
                 "chat_id": CHAT_ID,
                 "text": text,
-                "parse_mode": "HTML",
+                "parse_mode": "Markdown",
                 "disable_web_page_preview": True
             },
             timeout=10
@@ -95,14 +95,14 @@ def send(text):
         pass
 
 # =========================
-# 📰 FORMAT (NEW STYLE)
+# 📰 FORMAT (BOLD STYLE)
 # =========================
 def format_msg(ar, en, fa):
-    return f"""{ar}
+    return f"""**🔴 عاجل | {ar}**
 
-{en}
+**🔴 Urgent | {en}**
 
-{fa}
+**🔴 فوری | {fa}**
 """
 
 # =========================
@@ -125,12 +125,12 @@ def process(url):
     if not items:
         return
 
-    item = items[0]
+    item = items[0]  # أحدث خبر فقط
 
     title = clean(item.title.text if item.title else "")
     desc = clean(item.description.text if item.description else "")
 
-    # منع تكرار النص داخل نفسه
+    # منع تكرار داخل النص
     if desc and title in desc:
         desc = ""
 
