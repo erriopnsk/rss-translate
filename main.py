@@ -27,6 +27,7 @@ def send(text):
             data={
                 "chat_id": CHAT_ID,
                 "text": text,
+                "parse_mode": "HTML",  # 🔥 لتفعيل bold
                 "disable_web_page_preview": True
             },
             timeout=10
@@ -44,9 +45,19 @@ def md5(x):
 
 def clean_text(text):
     text = BeautifulSoup(text, "html.parser").text
-    text = re.sub(r".*?", "", text)
+    text = re.sub(r"\[.*?\]", "", text)
     text = re.sub(r"\s+", " ", text)
     return text.strip()
+
+# 🔥 إزالة التكرار داخل الجمل
+def remove_duplicate(text):
+    parts = re.split(r'[.!?]', text)
+    unique = []
+    for p in parts:
+        p = p.strip()
+        if p and p not in unique:
+            unique.append(p)
+    return ". ".join(unique)
 
 # =======================
 # تحميل الإعدادات
@@ -77,21 +88,25 @@ def translate(text):
     except:
         fa = text
 
-    # تنظيف بسيط من التكرار
-    en = en.replace("Urgent | Urgent |", "Urgent |").strip()
-    fa = fa.replace("فوری | فوری |", "فوری |").strip()
+    # 🔥 إزالة التكرار
+    en = remove_duplicate(en)
+    fa = remove_duplicate(fa)
+
+    # 🔥 تنظيف كلمات عاجل
+    en = en.replace("Urgent | Urgent |", "").replace("Urgent |", "").strip()
+    fa = fa.replace("فوری | فوری |", "").replace("فوری |", "").strip()
 
     return en, fa
 
 # =======================
-# تنسيق الرسالة (المطلوب)
+# تنسيق الرسالة (Bold كامل)
 # =======================
 def format_msg(title, en, fa):
-    return f"""🔴 عاجل | {title}
+    return f"""<b>🔴 عاجل | {title}</b>
 
-⭕️Urgent| {en}
+<b>⭕️Urgent| {en}</b>
 
-⭕️فوری| {fa}
+<b>⭕️فوری| {fa}</b>
 """
 
 # =======================
@@ -111,7 +126,7 @@ def run(sec):
         print("RSS ERROR:", url)
         return
 
-    soup = BeautifulSoup(xml, "xml")
+    soup = BeautifulSoup(xml, "html.parser")
     items = soup.find_all("item")
 
     count = 0
@@ -122,4 +137,35 @@ def run(sec):
             break
 
         title = clean_text(item.title.text if item.title else "")
-        desc
+
+        if not title:
+            continue
+
+        # 🔥 منع تكرار الأخبار
+        key = md5(title)
+        if key in seen:
+            continue
+        seen.add(key)
+
+        # ✅ نستخدم العنوان فقط (حل المشكلة)
+        text = title
+
+        en, fa = translate(text)
+
+        msg = format_msg(title, en, fa)
+
+        send(msg)
+
+        print("SENT:", title[:60])
+
+        count += 1
+        time.sleep(1)
+
+# =======================
+# تشغيل دائم
+# =======================
+while True:
+    for sec in secs[1:]:
+        run(sec)
+
+    time.sleep(5)
