@@ -88,7 +88,7 @@ def run(sec):
         print("RSS ERROR:", url)
         return
 
-    soup = BeautifulSoup(xml, "xml")
+    soup = BeautifulSoup(xml, "lxml-xml")
     items = soup.find_all("item")
 
     count = 0
