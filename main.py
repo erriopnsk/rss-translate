@@ -11,7 +11,7 @@ from pygtrans import Translate
 # =========================
 # 🔥 CONFIG
 # =========================
-TELEGRAM_TOKEN ="8715919493:AAGPmTrIEG-msszdRaO1Ujdr3AogPablXkI"
+TELEGRAM_TOKEN = "8715919493:AAGPmTrIEG-msszdRaO1Ujdr3AogPablXkI"
 CHAT_ID = "@Qassamcircler"
 
 RSS_FEEDS = [
@@ -20,7 +20,7 @@ RSS_FEEDS = [
 ]
 
 # =========================
-# 🧠 DATABASE (Core Memory)
+# 🧠 DATABASE
 # =========================
 conn = sqlite3.connect("rss_bot.db", check_same_thread=False)
 cur = conn.cursor()
@@ -95,15 +95,13 @@ def send(text):
         pass
 
 # =========================
-# 📰 FORMAT
+# 📰 FORMAT (NEW STYLE)
 # =========================
 def format_msg(ar, en, fa):
-    return f"""<b>🔴 عاجل | {ar}</b>
+    return f"""{ar}
 
-<b>🇬🇧 English:</b>
 {en}
 
-<b>🇮🇷 فارسی:</b>
 {fa}
 """
 
@@ -117,7 +115,7 @@ def fetch(url):
     return BeautifulSoup(xml, "xml")
 
 # =========================
-# 🧠 PROCESS LOGIC (SMART CORE)
+# 🧠 PROCESS
 # =========================
 def process(url):
 
@@ -127,27 +125,22 @@ def process(url):
     if not items:
         return
 
-    # 🔥 أحدث خبر فقط
     item = items[0]
 
     title = clean(item.title.text if item.title else "")
     desc = clean(item.description.text if item.description else "")
 
-    # منع التكرار داخل النص
+    # منع تكرار النص داخل نفسه
     if desc and title in desc:
         desc = ""
 
-    text = normalize(f"{title} {desc}")
+    text = clean(f"{title} {desc}")
 
-    # لو فاضي تجاهل
     if not text:
         return
 
     news_id = md5(text)
 
-    # =========================
-    # 🚫 منع التكرار النهائي
-    # =========================
     if already_sent(news_id):
         return
 
@@ -162,12 +155,10 @@ def process(url):
     print("SENT:", title[:60])
 
 # =========================
-# 🚀 ENGINE (PRO LOOP)
+# 🚀 ENGINE
 # =========================
 def run():
-
     while True:
-
         for url in RSS_FEEDS:
             try:
                 process(url)
