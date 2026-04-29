@@ -49,24 +49,19 @@ def clean_text(text):
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
-def remove_duplicate(text):
-    parts = re.split(r'[.!?]', text)
-    unique = []
-    for p in parts:
-        p = p.strip()
-        if p and p not in unique:
-            unique.append(p)
-    return ". ".join(unique)
+def clean_all(text):
+    text = re.sub(r"(عاجل\s*\|\s*)+", "", text)
+    text = re.sub(r"(Urgent\s*\|\s*)+", "", text)
+    text = re.sub(r"(فوری\s*\|\s*)+", "", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
 
 # =======================
 # فلترة الأخبار
 # =======================
 FILTER_WORDS = [
-    "إسرائيل","اسرائيل","الاحتلال","الكيان",
-    "إيران","إيراني",
-    "لبنان","حزب الله",
-    "فلسطين","غزة","الضفة","القدس",
-    "Israel","Israeli","Iran","Lebanon","Palestine","Gaza"
+    "إسرائيل","الاحتلال","إيران","لبنان","فلسطين","غزة",
+    "Israel","Iran","Lebanon","Palestine","Gaza"
 ]
 
 def is_valid_news(text):
@@ -104,27 +99,24 @@ def translate(text):
     except:
         fa = text
 
-    en = remove_duplicate(en)
-    fa = remove_duplicate(fa)
-
-    en = en.replace("Urgent |", "").strip()
-    fa = fa.replace("فوری |", "").strip()
+    en = clean_all(en)
+    fa = clean_all(fa)
 
     return en, fa
 
 # =======================
-# تنسيق الرسالة
+# 📌 تنسيق الرسالة (عريض بالكامل)
 # =======================
 def format_msg(title, en, fa):
     return f"""<b>🔴 عاجل | {title}</b>
 
-<b>⭕️Urgent| {en}</b>
+<b>🔴 Urgent | {en}</b>
 
-<b>⭕️فوری| {fa}</b>
+<b>🔴 فوری | {fa}</b>
 """
 
 # =======================
-# RSS CORE (مصحح 100%)
+# RSS CORE
 # =======================
 def run(sec):
 
@@ -153,23 +145,19 @@ def run(sec):
         title = clean_text(item.title.text if item.title else "")
         desc = clean_text(item.description.text if item.description else "")
 
-        # 🔥 أهم تعديل: دمج الخبر الكامل
-        text = f"{title} {desc}".strip()
+        text = clean_all(f"{title} {desc}")
 
         if not title:
             continue
 
-        # فلترة
         if not is_valid_news(text):
             continue
 
-        # منع التكرار
         key = md5(title)
         if key in seen:
             continue
         seen.add(key)
 
-        # ترجمة النص الكامل
         en, fa = translate(text)
 
         msg = format_msg(text, en, fa)
