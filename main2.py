@@ -14,20 +14,14 @@ import requests
 TELEGRAM_TOKEN = "8715919493:AAGPmTrIEG-msszdRaO1Ujdr3AogPablXkI"
 CHAT_ID = "@Qassamcircler"
 
-def send_telegram(text, image=None):
+def send_telegram(text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
+
     try:
-        if image:
-            requests.post(url + "/sendPhoto", data={
-                "chat_id": CHAT_ID,
-                "photo": image,
-                "caption": text[:1024]
-            })
-        else:
-            requests.post(url + "/sendMessage", data={
-                "chat_id": CHAT_ID,
-                "text": text
-            })
+        requests.post(url + "/sendMessage", data={
+            "chat_id": CHAT_ID,
+            "text": text
+        })
     except Exception as e:
         print("Telegram error:", e)
 
