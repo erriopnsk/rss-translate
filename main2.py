@@ -11,7 +11,7 @@ import requests
 # =======================
 # 🔥 Telegram Settings
 # =======================
-TELEGRAM_TOKEN = "PUT_NEW_TOKEN_HERE"
+TELEGRAM_TOKEN = "8715919493:AAGPmTrIEG-msszdRaO1Ujdr3AogPablXkI"
 CHAT_ID = "@Qassamcircler"
 
 def send_telegram(text, image=None):
