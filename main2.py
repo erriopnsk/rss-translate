@@ -130,16 +130,11 @@ def run(sec):
         title = clean(title)
 
         # 📡 message format (NO COLORS)
-        msg = f"""⭕️ {title}
+        msg = f"""⭕️ عاجل | {title}
 
-العربية:
-{arabic}
+🚨 English: Urgent: {english}
 
-English:
-{english}
-
-فارسی:
-{farsi}
+🚨 فارسی: فوری: {farsi}
 """
 
         send_telegram(msg)
