@@ -1,7 +1,6 @@
 # coding:utf-8
 import configparser
 import hashlib
-import os
 import socket
 import time
 import requests
@@ -36,7 +35,7 @@ def send(text):
         pass
 
 # =======================
-# أدوات تنظيف قوية
+# أدوات تنظيف
 # =======================
 seen = set()
 
@@ -45,8 +44,8 @@ def md5(x):
 
 def clean_text(text):
     text = BeautifulSoup(text, "html.parser").text
-    text = re.sub(r"\[.*?\]", "", text)   # إزالة [...]
-    text = re.sub(r"\s+", " ", text)      # تنظيف الفراغات
+    text = re.sub(r".*?", "", text)
+    text = re.sub(r"\s+", " ", text)
     return text.strip()
 
 # =======================
@@ -78,19 +77,21 @@ def translate(text):
     except:
         fa = text
 
+    # تنظيف بسيط من التكرار
+    en = en.replace("Urgent | Urgent |", "Urgent |").strip()
+    fa = fa.replace("فوری | فوری |", "فوری |").strip()
+
     return en, fa
 
 # =======================
-# تنسيق الرسالة
+# تنسيق الرسالة (المطلوب)
 # =======================
 def format_msg(title, en, fa):
-    return f"""🔴 {title}
+    return f"""🔴 عاجل | {title}
 
-🇬🇧 English:
-{en}
+⭕️Urgent| {en}
 
-🇮🇷 فارسی:
-{fa}
+⭕️فوری| {fa}
 """
 
 # =======================
@@ -106,7 +107,7 @@ def run(sec):
     try:
         req = request.Request(url, headers=headers)
         xml = request.urlopen(req, timeout=10).read().decode("utf-8")
-    except Exception as e:
+    except Exception:
         print("RSS ERROR:", url)
         return
 
@@ -121,35 +122,4 @@ def run(sec):
             break
 
         title = clean_text(item.title.text if item.title else "")
-        desc = clean_text(item.description.text if item.description else "")
-
-        if not title:
-            continue
-
-        # 🔥 منع التكرار
-        key = md5(title)
-        if key in seen:
-            continue
-        seen.add(key)
-
-        text = title + " " + desc
-
-        en, fa = translate(text)
-
-        msg = format_msg(title, en, fa)
-
-        send(msg)
-
-        print("SENT:", title[:60])
-
-        count += 1
-        time.sleep(1)
-
-# =======================
-# تشغيل دائم
-# =======================
-while True:
-    for sec in secs[1:]:
-        run(sec)
-
-    time.sleep(5)
+        desc
