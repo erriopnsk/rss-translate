@@ -1,6 +1,7 @@
 name: RSS Telegram Bot
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: "* * * * *"
   workflow_dispatch:
