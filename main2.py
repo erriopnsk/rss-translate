@@ -7,46 +7,51 @@ import urllib
 import hashlib
 import os
 import requests
-import html
 import re
+import time
 
 # =======================
-# 🔥 Telegram Config
+# 🔥 Telegram Settings
 # =======================
 TELEGRAM_TOKEN = "8715919493:AAGPmTrIEG-msszdRaO1Ujdr3AogPablXkI"
 CHAT_ID = "@Qassamcircler"
 
+# =======================
+# إرسال تيليجرام (نص فقط)
+# =======================
 def send_telegram(text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     try:
         requests.post(url, data={
             "chat_id": CHAT_ID,
-            "text": text,
-            "disable_web_page_preview": True
+            "text": text
         })
     except Exception as e:
         print("Telegram error:", e)
 
 # =======================
-# 🧠 Clean Text
+# أدوات تنظيف
 # =======================
+def get_md5_value(src):
+    m = hashlib.md5()
+    m.update(src.encode('utf-8'))
+    return m.hexdigest()
+
 def clean(text):
-    if not text:
-        return ""
-    text = html.unescape(text)
+    text = re.sub(r'\[.*?\]', '', text)
     text = re.sub(r'<.*?>', '', text)
-    text = text.replace("\r", "")
-    text = re.sub(r'\n\s*\n', '\n\n', text)
+    text = re.sub(r'http\S+', '', text)
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
+
+def clean_breaking(text):
+    text = clean(text)
+    text = re.sub(r'^(⭕️?\s*)?عاجل\s*\|\s*', '', text)
+    text = re.sub(r'\bعاجل\b\s*\|\s*', '', text)
     return text.strip()
 
 # =======================
-# MD5 (prevent duplicate)
-# =======================
-def md5(s):
-    return hashlib.md5(s.encode('utf-8')).hexdigest()
-
-# =======================
-# Load config
+# تحميل الإعدادات
 # =======================
 with open('test.ini', mode='r') as f:
     ini_data = parse.unquote(f.read())
@@ -55,45 +60,45 @@ config = configparser.ConfigParser()
 config.read_string(ini_data)
 secs = config.sections()
 
-def get(sec, name):
+def get_cfg(sec, name):
     return config.get(sec, name).strip('"')
 
-def setv(sec, name, value):
-    config[sec][name] = '"%s"' % value
+def get_cfg_tra(sec):
+    cc = config.get(sec, "action").strip('"')
+    if "->" in cc:
+        return cc.split('->')[0], cc.split('->')[1]
+    return "auto", "en"
 
-def get_tra(sec):
-    c = config.get(sec, "action").strip('"')
-    if "->" in c:
-        return c.split("->")[0], c.split("->")[1]
-    return "auto", "ar"
+BASE = get_cfg("cfg", "base")
 
-BASE = get("cfg", "base")
-os.makedirs(BASE, exist_ok=True)
+try:
+    os.makedirs(BASE)
+except:
+    pass
 
 GT = Translate()
 
 # =======================
-# 🚀 MAIN FUNCTION
+# منع تكرار الأخبار
 # =======================
-def run(sec):
+sent_news = set()
 
-    url = get(sec, "url")
-    max_item = int(get(sec, "max"))
-    source, target = get_tra(sec)
-    old_md5 = get(sec, "md5") if "md5" in config[sec] else ""
+# =======================
+# النظام الرئيسي
+# =======================
+def tran(sec):
 
-    headers = {"User-Agent": "Mozilla/5.0"}
+    url = get_cfg(sec, 'url')
+    max_item = int(get_cfg(sec, 'max'))
+    source, target = get_cfg_tra(sec)
+
+    headers = {'User-Agent': 'Mozilla/5.0'}
+
     req = urllib.request.Request(url, headers=headers)
-    xml = request.urlopen(req).read().decode("utf8")
-
-    # 🔁 منع التكرار
-    new_md5 = md5(xml)
-    if new_md5 == old_md5:
-        return
-    setv(sec, "md5", new_md5)
+    xml = request.urlopen(req).read().decode('utf8')
 
     soup = BeautifulSoup(xml, "html.parser")
-    items = soup.find_all("item")
+    items = soup.find_all('item')
 
     count = 0
 
@@ -102,34 +107,25 @@ def run(sec):
         if count >= max_item:
             break
 
-        title = item.find("title")
-        desc = item.find("description")
+        title = item.find('title')
+        desc = item.find('description')
 
-        title = title.text if title else ""
-        desc = desc.text if desc else ""
+        title = clean_breaking(title.text if title else "")
+        desc = clean_breaking(desc.text if desc else "")
 
-        if len(title.strip()) < 3:
+        # منع التكرار
+        news_id = get_md5_value(title + desc)
+        if news_id in sent_news:
             continue
+        sent_news.add(news_id)
 
-        # 🔥 translate
         try:
-            arabic = GT.translate(desc, target="ar", source=source).translatedText
             english = GT.translate(desc, target="en", source=source).translatedText
             farsi = GT.translate(desc, target="fa", source=source).translatedText
-
-            title = GT.translate(title, target="ar", source=source).translatedText
         except:
-            arabic = desc
             english = desc
             farsi = desc
 
-        # 🧹 clean
-        arabic = clean(arabic)
-        english = clean(english)
-        farsi = clean(farsi)
-        title = clean(title)
-
-        # 📡 message format (NO COLORS)
         msg = f"""⭕️ عاجل | {title}
 
 🚨 English: Urgent: {english}
@@ -140,17 +136,16 @@ def run(sec):
         send_telegram(msg)
 
         count += 1
+        time.sleep(1)
 
     print("DONE:", url)
 
 # =======================
-# RUN ALL SOURCES
+# تشغيل كل المصادر
 # =======================
-for s in secs[1:]:
-    try:
-        run(s)
-    except Exception as e:
-        print("ERROR:", s, e)
+for x in secs[1:]:
+    tran(x)
 
-with open("test.ini", "w") as f:
+# حفظ md5 في الملف
+with open('test.ini', 'w') as f:
     config.write(f)
