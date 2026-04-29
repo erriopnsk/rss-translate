@@ -56,15 +56,25 @@ def clean_all(text):
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
-def remove_duplicate_sentences(text):
-    parts = re.split(r'[.!؟?]', text)
+# =======================
+# إزالة التكرار الذكي
+# =======================
+def smart_dedupe(text):
+    sentences = re.split(r'[.!؟?]', text)
     seen_local = set()
     result = []
-    for p in parts:
-        p = p.strip()
-        if p and p not in seen_local:
-            seen_local.add(p)
-            result.append(p)
+
+    for s in sentences:
+        s = s.strip()
+        if not s:
+            continue
+
+        if any(s in x or x in s for x in seen_local):
+            continue
+
+        seen_local.add(s)
+        result.append(s)
+
     return ". ".join(result).strip()
 
 # =======================
@@ -100,6 +110,8 @@ def get(sec, key):
 GT = Translate()
 
 def translate(text):
+    text = smart_dedupe(text)
+
     try:
         en = GT.translate(text, target="en").translatedText
     except:
@@ -110,11 +122,8 @@ def translate(text):
     except:
         fa = text
 
-    en = clean_all(en)
-    fa = clean_all(fa)
-
-    en = remove_duplicate_sentences(en)
-    fa = remove_duplicate_sentences(fa)
+    en = smart_dedupe(clean_all(en))
+    fa = smart_dedupe(clean_all(fa))
 
     return en, fa
 
@@ -159,8 +168,8 @@ def run(sec):
         title = clean_text(item.title.text if item.title else "")
         desc = clean_text(item.description.text if item.description else "")
 
-        text = f"{title} {desc}"
-        text = clean_all(text)
+        text = clean_all(f"{title} {desc}")
+        text = smart_dedupe(text)
 
         if not title:
             continue
