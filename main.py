@@ -56,26 +56,26 @@ def clean_all(text):
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
-# =======================
-# إزالة التكرار الذكي
-# =======================
 def smart_dedupe(text):
-    sentences = re.split(r'[.!؟?]', text)
+    parts = re.split(r'[.!؟?]', text)
     seen_local = set()
-    result = []
+    out = []
 
-    for s in sentences:
-        s = s.strip()
-        if not s:
+    for p in parts:
+        p = p.strip()
+        if not p:
             continue
-
-        if any(s in x or x in s for x in seen_local):
+        if any(p in x or x in p for x in seen_local):
             continue
+        seen_local.add(p)
+        out.append(p)
 
-        seen_local.add(s)
-        result.append(s)
+    return ". ".join(out).strip()
 
-    return ". ".join(result).strip()
+def make_key(text):
+    text = clean_all(text)
+    text = smart_dedupe(text)
+    return md5(text)
 
 # =======================
 # فلترة الأخبار
@@ -86,10 +86,7 @@ FILTER_WORDS = [
 ]
 
 def is_valid_news(text):
-    for w in FILTER_WORDS:
-        if w.lower() in text.lower():
-            return True
-    return False
+    return any(w.lower() in text.lower() for w in FILTER_WORDS)
 
 # =======================
 # تحميل الإعدادات
@@ -128,7 +125,7 @@ def translate(text):
     return en, fa
 
 # =======================
-# تنسيق الرسالة (عريض)
+# تنسيق الرسالة
 # =======================
 def format_msg(title, en, fa):
     return f"""<b>🔴 عاجل | {title}</b>
@@ -139,12 +136,11 @@ def format_msg(title, en, fa):
 """
 
 # =======================
-# RSS CORE
+# RSS CORE (آخر خبر فقط)
 # =======================
 def run(sec):
 
     url = get(sec, "url")
-    max_item = int(get(sec, "max"))
 
     headers = {"User-Agent": "Mozilla/5.0"}
 
@@ -158,40 +154,33 @@ def run(sec):
     soup = BeautifulSoup(xml, "html.parser")
     items = soup.find_all("item")
 
-    count = 0
+    if not items:
+        return
 
-    for item in items:
+    # 🔥 فقط أحدث خبر
+    item = items[0]
 
-        if count >= max_item:
-            break
+    title = clean_text(item.title.text if item.title else "")
+    desc = clean_text(item.description.text if item.description else "")
 
-        title = clean_text(item.title.text if item.title else "")
-        desc = clean_text(item.description.text if item.description else "")
+    if not title:
+        return
 
-        text = clean_all(f"{title} {desc}")
-        text = smart_dedupe(text)
+    text = clean_all(f"{title} {desc}")
+    text = smart_dedupe(text)
 
-        if not title:
-            continue
+    key = make_key(text)
+    if key in seen:
+        return
+    seen.add(key)
 
-        if not is_valid_news(text):
-            continue
+    en, fa = translate(text)
 
-        key = md5(title)
-        if key in seen:
-            continue
-        seen.add(key)
+    msg = format_msg(text, en, fa)
 
-        en, fa = translate(text)
+    send(msg)
 
-        msg = format_msg(text, en, fa)
-
-        send(msg)
-
-        print("SENT:", title[:60])
-
-        count += 1
-        time.sleep(2)
+    print("SENT LATEST:", title[:60])
 
 # =======================
 # تشغيل دائم
@@ -199,6 +188,6 @@ def run(sec):
 while True:
     for sec in secs[1:]:
         run(sec)
-        time.sleep(15)
+        time.sleep(10)
 
     time.sleep(60)
