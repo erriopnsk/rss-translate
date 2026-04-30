@@ -54,11 +54,10 @@ def clean(text):
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
+# تنظيف الترجمة فقط
 def normalize(text):
-    text = re.sub(r"(عاجل\s*\|\s*)+", "", text)
     text = re.sub(r"(Urgent\s*\|\s*)+", "", text)
     text = re.sub(r"(فوری\s*\|\s*)+", "", text)
-    text = re.sub(r"^🔴\s*", "", text)
     return text.strip()
 
 # =========================
@@ -96,7 +95,7 @@ def send(text):
         pass
 
 # =========================
-# 📰 FORMAT (BOLD FULL)
+# 📰 FORMAT (BOLD)
 # =========================
 def format_msg(ar, en, fa):
     return f"""**🔴 عاجل | {ar}**
@@ -116,7 +115,7 @@ def fetch(url):
     return BeautifulSoup(xml, "xml")
 
 # =========================
-# 🧠 PROCESS (FIXED CORE)
+# 🧠 PROCESS (FIXED)
 # =========================
 def process(url):
 
@@ -126,16 +125,19 @@ def process(url):
     if not items:
         return
 
-    item = items[0]  # أحدث خبر فقط
+    item = items[0]
 
     title = clean(item.title.text if item.title else "")
     desc = clean(item.description.text if item.description else "")
 
-    # منع تكرار النص داخل نفسه
+    # منع تكرار داخل النص
     if desc and (title in desc or desc in title):
         desc = ""
 
     text = clean(f"{title} {desc}" if desc else title)
+
+    # 🔥 حذف "عاجل |" من العربي فقط
+    text = re.sub(r"^(عاجل\s*\|\s*)+", "", text).strip()
 
     if not text:
         return
