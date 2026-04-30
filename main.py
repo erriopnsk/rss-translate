@@ -54,7 +54,7 @@ def clean(text):
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
-# تنظيف الترجمة فقط
+# تنظيف الترجمة
 def normalize(text):
     text = re.sub(r"(Urgent\s*\|\s*)+", "", text)
     text = re.sub(r"(فوری\s*\|\s*)+", "", text)
@@ -115,7 +115,7 @@ def fetch(url):
     return BeautifulSoup(xml, "xml")
 
 # =========================
-# 🧠 PROCESS
+# 🧠 PROCESS (معدل بالكامل)
 # =========================
 def process(url):
 
@@ -125,40 +125,44 @@ def process(url):
     if not items:
         return
 
-    item = items[0]  # أحدث خبر فقط
+    # 🔥 نفحص أول 5 أخبار
+    for item in items[:5]:
 
-    title = clean(item.title.text if item.title else "")
-    desc = clean(item.description.text if item.description else "")
+        title = clean(item.title.text if item.title else "")
+        desc = clean(item.description.text if item.description else "")
 
-    # منع التكرار داخل النص
-    if desc and (title in desc or desc in title):
-        desc = ""
+        # منع تكرار النص داخل نفسه
+        if desc and (title in desc or desc in title):
+            desc = ""
 
-    text = clean(f"{title} {desc}" if desc else title)
+        text = clean(f"{title} {desc}" if desc else title)
 
-    # 🔥 حذف "عاجل |" من العربي فقط
-    text = re.sub(r"^(عاجل\s*\|\s*)+", "", text).strip()
+        # حذف "عاجل |" من العربي فقط
+        text = re.sub(r"^(عاجل\s*\|\s*)+", "", text).strip()
 
-    if not text:
-        return
+        if not text:
+            continue
 
-    news_id = md5(text)
+        # 🔥 الاعتماد على العنوان فقط لمنع التكرار
+        news_id = md5(title)
 
-    if already_sent(news_id):
-        return
+        if already_sent(news_id):
+            continue
 
-    save_news(news_id)
+        save_news(news_id)
 
-    en, fa = translate(text)
+        en, fa = translate(text)
 
-    msg = format_msg(text, en, fa)
+        msg = format_msg(text, en, fa)
 
-    send(msg)
+        send(msg)
 
-    print("SENT:", title[:60])
+        print("SENT:", title[:60])
+
+        time.sleep(1)
 
 # =========================
-# 🚀 ENGINE (بدون لوب لا نهائي)
+# 🚀 ENGINE
 # =========================
 def run():
     for url in RSS_FEEDS:
