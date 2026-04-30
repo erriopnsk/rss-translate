@@ -95,7 +95,7 @@ def send(text):
         pass
 
 # =========================
-# 📰 FORMAT (BOLD)
+# 📰 FORMAT
 # =========================
 def format_msg(ar, en, fa):
     return f"""**🔴 عاجل | {ar}**
@@ -115,7 +115,7 @@ def fetch(url):
     return BeautifulSoup(xml, "xml")
 
 # =========================
-# 🧠 PROCESS (FIXED)
+# 🧠 PROCESS
 # =========================
 def process(url):
 
@@ -125,12 +125,12 @@ def process(url):
     if not items:
         return
 
-    item = items[0]
+    item = items[0]  # أحدث خبر فقط
 
     title = clean(item.title.text if item.title else "")
     desc = clean(item.description.text if item.description else "")
 
-    # منع تكرار داخل النص
+    # منع التكرار داخل النص
     if desc and (title in desc or desc in title):
         desc = ""
 
@@ -158,18 +158,15 @@ def process(url):
     print("SENT:", title[:60])
 
 # =========================
-# 🚀 ENGINE
+# 🚀 ENGINE (بدون لوب لا نهائي)
 # =========================
 def run():
-    while True:
-        for url in RSS_FEEDS:
-            try:
-                process(url)
-                time.sleep(5)
-            except Exception as e:
-                print("ERROR:", url, e)
-
-        time.sleep(60)
+    for url in RSS_FEEDS:
+        try:
+            process(url)
+            time.sleep(5)
+        except Exception as e:
+            print("ERROR:", url, e)
 
 # =========================
 run()
