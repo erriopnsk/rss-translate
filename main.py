@@ -9,7 +9,7 @@ from urllib import request
 from pygtrans import Translate
 
 # =========================
-# 🔥 CONFIG
+# CONFIG
 # =========================
 TELEGRAM_TOKEN = "8715919493:AAGPmTrIEG-msszdRaO1Ujdr3AogPablXkI"
 CHAT_ID = "@Qassamcircler"
@@ -20,7 +20,7 @@ RSS_FEEDS = [
 ]
 
 # =========================
-# 🧠 DATABASE
+# DATABASE
 # =========================
 conn = sqlite3.connect("rss_bot.db", check_same_thread=False)
 cur = conn.cursor()
@@ -41,7 +41,7 @@ def save_news(news_id):
     conn.commit()
 
 # =========================
-# ⚡ TOOLS
+# TOOLS
 # =========================
 GT = Translate()
 
@@ -54,14 +54,13 @@ def clean(text):
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
-# تنظيف الترجمة
 def normalize(text):
     text = re.sub(r"(Urgent\s*\|\s*)+", "", text)
     text = re.sub(r"(فوری\s*\|\s*)+", "", text)
     return text.strip()
 
 # =========================
-# 🌍 TRANSLATION
+# TRANSLATION
 # =========================
 def translate(text):
     try:
@@ -77,7 +76,7 @@ def translate(text):
     return normalize(en), normalize(fa)
 
 # =========================
-# 📩 TELEGRAM
+# TELEGRAM
 # =========================
 def send(text):
     try:
@@ -89,13 +88,13 @@ def send(text):
                 "parse_mode": "Markdown",
                 "disable_web_page_preview": True
             },
-            timeout=10
+            timeout=8
         )
     except:
         pass
 
 # =========================
-# 📰 FORMAT
+# FORMAT
 # =========================
 def format_msg(ar, en, fa):
     return f"""**🔴 عاجل | {ar}**
@@ -106,44 +105,38 @@ def format_msg(ar, en, fa):
 """
 
 # =========================
-# 🌐 FETCH RSS
+# FETCH RSS
 # =========================
 def fetch(url):
     headers = {"User-Agent": "Mozilla/5.0"}
     req = request.Request(url, headers=headers)
-    xml = request.urlopen(req, timeout=10).read().decode("utf-8")
+    xml = request.urlopen(req, timeout=8).read().decode("utf-8")
     return BeautifulSoup(xml, "xml")
 
 # =========================
-# 🧠 PROCESS (معدل بالكامل)
+# PROCESS (FAST CORE)
 # =========================
 def process(url):
 
     soup = fetch(url)
     items = soup.find_all("item")
 
-    if not items:
-        return
-
-    # 🔥 نفحص أول 5 أخبار
-    for item in items[:5]:
+    # 🔥 أسرع: أول 3 فقط
+    for item in items[:3]:
 
         title = clean(item.title.text if item.title else "")
         desc = clean(item.description.text if item.description else "")
 
-        # منع تكرار النص داخل نفسه
         if desc and (title in desc or desc in title):
             desc = ""
 
         text = clean(f"{title} {desc}" if desc else title)
 
-        # حذف "عاجل |" من العربي فقط
         text = re.sub(r"^(عاجل\s*\|\s*)+", "", text).strip()
 
         if not text:
             continue
 
-        # 🔥 الاعتماد على العنوان فقط لمنع التكرار
         news_id = md5(title)
 
         if already_sent(news_id):
@@ -159,18 +152,19 @@ def process(url):
 
         print("SENT:", title[:60])
 
-        time.sleep(1)
-
 # =========================
-# 🚀 ENGINE
+# 🚀 REALTIME LOOP (IMPORTANT)
 # =========================
 def run():
-    for url in RSS_FEEDS:
-        try:
-            process(url)
-            time.sleep(5)
-        except Exception as e:
-            print("ERROR:", url, e)
+    while True:
+        for url in RSS_FEEDS:
+            try:
+                process(url)
+            except:
+                pass
+
+        # 🔥 أسرع دورة ممكنة
+        time.sleep(5)
 
 # =========================
 run()
